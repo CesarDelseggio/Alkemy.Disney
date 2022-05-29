@@ -1,0 +1,279 @@
+using Alkemy.Disney.Controllers.Caracters;
+using Alkemy.Disney.DTOs.Caracters;
+using Alkemy.Disney.Models.Entities;
+using Alkemy.Disney.Tests.Helpers;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace Alkemy.Disney.Tests.Controllers
+{
+    public class CaractersControllerTest : BaseTest
+    {
+        [SetUp]
+        public void Setup()
+        {
+        }
+
+        [Test]
+        public async Task GetAllTest()
+        {
+            //
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var list = db.Caracters.ToList();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //
+            var resp = await Controller.Get();
+            var result = resp.Value;
+
+            //
+            Assert.AreEqual(list.Count(),result.Count());
+        }
+
+        [Test]
+        public async Task GetByIdTest()
+        {
+            //
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = db.Caracters.First();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //
+            var resp = await Controller.Get(entity.Id);
+            var result = resp.Value;
+
+            //
+            Assert.AreEqual(entity.Id, result.Id);
+        }
+
+        [Test]
+        public async Task SetCorrectMovieTest()
+        {
+            //
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = db.Caracters.First();
+            var movie = db.Movies.First();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //
+            var resp = await Controller.Movies(entity.Id,movie.Id);
+            var result = resp;
+
+            //
+            Assert.NotNull(result);
+            Assert.IsInstanceOf(typeof(NoContentResult),result);
+        }
+
+        [Test]
+        public async Task SetIncorrectMovieTest()
+        {
+            //
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = db.Caracters.First();
+            var movie = db.Movies.First();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //
+            var resp = await Controller.Movies(entity.Id, 0);
+            var result = resp;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(NotFoundResult), result);
+        }
+
+        [Test]
+        public async Task SetNotExistMovieTest()
+        {
+            //
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = db.Caracters.First();
+            var movie = db.Movies.First();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //
+            var resp = await Controller.Movies(entity.Id, 4589);
+            var result = resp;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(NotFoundResult), result);
+        }
+
+        [Test]
+        public async Task CreateNewItemTest()
+        {
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+            entity.Id = 0;
+            db.ChangeTracker.Clear();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //
+            var resp = await Controller.Post(new CaracterEditDTO(entity));
+            var result = resp.Result;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(CreatedAtActionResult), result);
+        }
+
+        [Test]
+        public async Task CreateNewItemBadRequestNotCeroIdTest()
+        {
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+            
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //
+            var resp = await Controller.Post(new CaracterEditDTO(entity));
+            var result = resp.Result;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(BadRequestObjectResult), result);
+        }
+
+        [Test]
+        public async Task CreateNewItemBadRequestNotValidPropertyTest()
+        {
+            // Arrange
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+            entity.Id=0;
+            entity.Name = null;
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+            Controller.ObjectValidator = new ObjectValidator();
+
+
+            //Act
+            Controller.TryValidateModel(entity);
+            var resp = await Controller.Post(new CaracterEditDTO(entity));
+            var result = resp.Result;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(BadRequestObjectResult), result);
+        }
+
+        [Test]
+        public async Task EditItemTest()
+        {
+            // Arrange
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+            entity.Name = "Editado";
+            db.ChangeTracker.Clear();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+            Controller.ObjectValidator = new ObjectValidator();
+
+            //Act
+            Controller.TryValidateModel(entity);
+            var resp = await Controller.Put(entity.Id, new CaracterEditDTO(entity));
+            var result = resp;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(NoContentResult), result);
+        }
+
+        [Test]
+        public async Task EditItemBadRequestIdNotEditableTest()
+        {
+            // Arrange
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+            var oldId = entity.Id;
+            entity.Id = 25893;
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+            Controller.ObjectValidator = new ObjectValidator();
+
+            //Act
+            Controller.TryValidateModel(entity);
+            var resp = await Controller.Put(oldId, new CaracterEditDTO(entity));
+            var result = resp;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(BadRequestObjectResult), result);
+        }
+
+        [Test]
+        public async Task EditItemBadRequestNotValidEntityTest()
+        {
+            // Arrange
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+            entity.Name = null;
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+            Controller.ObjectValidator = new ObjectValidator();
+
+            //Act
+            Controller.TryValidateModel(entity);
+            var resp = await Controller.Put(entity.Id, new CaracterEditDTO(entity));
+            var result = resp;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(BadRequestObjectResult), result);
+        }
+
+        [Test]
+        public async Task DeleteItemTest()
+        {
+            // Arrange
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //Act
+            var resp = await Controller.Delete(entity.Id);
+            var result = resp;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(NoContentResult),result);
+        }
+
+        [Test]
+        public async Task DeleteItemNotFoundTest()
+        {
+            // Arrange
+            var db = GetDbContext(Guid.NewGuid().ToString());
+            var entity = await db.Caracters.FirstAsync();
+            entity.Id = 546454;
+
+            var Controller = new CaractersController(db);
+            Controller.ControllerContext.HttpContext = new DefaultHttpContext();
+
+            //Act
+            var resp = await Controller.Delete(entity.Id);
+            var result = resp;
+
+            // Assert
+            Assert.IsInstanceOf(typeof(NotFoundResult), result);
+        }
+    }
+}
